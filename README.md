@@ -41,7 +41,7 @@ positions = torch.tensor([[100, 100], [200, 200]], device='cuda')
 color = torch.tensor([255, 0, 0], dtype=torch.uint8, device='cuda')
 canvas.draw(positions, color)
 
-# Draw lines (x0, y0, x1, y1)
+# Draw two lines (x0, y0, x1, y1)
 lines = torch.tensor([[0, 0, 100, 100], [50, 0, 50, 100]], device='cuda')
 canvas.drawLine(lines, color)
 
