@@ -18,19 +18,17 @@ PytorchFastDraw provides a `Canvas` class that leverages PyTorch tensors and CUD
 - Python 3.x
 - PyTorch (with CUDA support recommended)
 - OpenCV (`cv2`)
-- NumPy
 
 ## Installation
-
+Install torch with CUDA support following the instructions at [PyTorch.org](https://pytorch.org/get-started/locally/), then install the required Python packages:
 ```bash
-pip install torch opencv-python numpy
+pip install opencv-python
 ```
 
 ## Usage
 
 ```python
 from torch_draw import Canvas
-import torch
 
 # Create a canvas (800x600 pixels on GPU)
 canvas = Canvas(800, 600, device='cuda')

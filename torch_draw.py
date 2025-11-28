@@ -28,7 +28,6 @@ SOFTWARE.
 
 import torch
 import cv2
-import numpy as np
 
 class Canvas:
     def __init__(self, width, height, device='cuda'):
