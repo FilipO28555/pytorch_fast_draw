@@ -25,7 +25,7 @@ Install torch with CUDA support following the instructions at [PyTorch.org](http
 pip install opencv-python
 ```
 
-## Usage
+## Usage - For better usage look in the library itself
 
 ```python
 from torch_draw import Canvas
