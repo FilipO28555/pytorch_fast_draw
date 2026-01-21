@@ -77,8 +77,38 @@ class Canvas:
         if len(col.shape) == 1:
             self.img[rows, cols] = color
         else:
+            # Multiple colors: assign colors per point
             self.img[rows, cols] = color
-            
+
+        return self
+        
+    def add(self, pos, col):
+        """Draw points at the specified positions with the specified colors. Add colors to existing pixel values.
+        Accumulates color for repeated points using flattening and index_add_.
+        Args:
+            pos: Tensor of shape (N, 2) containing the (x, y) coordinates
+            col: Tensor of shape (3,) or (N, 3) containing RGB color(s)
+        """
+        # Apply mask for points within bounds
+        mask_x = pos[:, 0].ge(0) & pos[:, 0].lt(self.width)
+        mask_y = pos[:, 1].ge(0) & pos[:, 1].lt(self.height)
+        valid_mask = mask_x & mask_y
+        if not valid_mask.any():
+            return self
+        valid_pos = pos[valid_mask]
+        # Handle color tensor shape
+        if len(col.shape) == 1:
+            color = col.unsqueeze(0).expand(valid_pos.shape[0], 3)
+        else:
+            color = col[valid_mask] if valid_mask.any() else col
+        # Flatten image
+        img_flat = self.img.view(-1, 3)
+        rows = valid_pos[:, 1].long()
+        cols = valid_pos[:, 0].long()
+        flat_idx = rows * self.width + cols
+        img_flat.index_add_(0, flat_idx, color)
+        # Unflatten
+        self.img = img_flat.view(self.height, self.width, 3)
         return self
     
     def drawLine(self, pos, col=None):
@@ -206,6 +236,11 @@ class Canvas:
         key = cv2.waitKey(wait)
         return key == 27  # Return True if ESC pressed
 
+    def save_png(self, path):
+        """Save the canvas as a PNG file."""
+        img = self.getImg()
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(path, img)
 class color:
     def __init__(self, device='cuda'):
         self.device = device
@@ -224,20 +259,62 @@ class color:
     
     def col(self, r,g,b):
         return torch.tensor([r,g,b], dtype=torch.uint8, device=self.device)
+    
+    def colLuma(self, luma):
+        # if luma is a number
+        if isinstance(luma, (int, float)):
+            return torch.tensor([luma, luma, luma], dtype=torch.uint8, device=self.device)
+        # if luma is a tensor
+        luma = torch.tensor(luma, device=self.device)
+        return torch.stack([luma, luma, luma], dim=-1).to(torch.uint8)
 
 
 # Usage example
 if __name__ == "__main__":
+    # Test the add method with repeated points
+    canvas = Canvas(800, 800)
+    col = color().col
+    
+    # There are two drawing functions: draw() and add()
+    # draw() - draws points, if points are repeated, last color is used
+    # add() - adds points, if points are repeated, all colors are used. Colour values are clamped to 255.
+    
+    # Points: Three circles regions with overlapping points
+    radious = 800/4
+    center1 = torch.tensor([200, 400], device='cuda')
+    center2 = torch.tensor([400, 400], device='cuda')
+    center3 = torch.tensor([600, 400], device='cuda')
+    y, x = torch.meshgrid(torch.arange(800, device='cuda'), torch.arange(800, device='cuda'), indexing='ij')
+    dist1 = torch.sqrt((x - center1[0])**2 + (y - center1[1])**2)
+    dist2 = torch.sqrt((x - center2[0])**2 + (y - center2[1])**2)
+    dist3 = torch.sqrt((x - center3[0])**2 + (y - center3[1])**2)
+    mask1 = dist1 <= radious
+    mask2 = dist2 <= radious
+    mask3 = dist3 <= radious
+    points1 = torch.stack([x[mask1], y[mask1]], dim=-1)
+    points2 = torch.stack([x[mask2], y[mask2]], dim=-1)
+    points3 = torch.stack([x[mask3], y[mask3]], dim=-1)
+    points = torch.cat([points1, points2, points3], dim=0)
+    colors1 = col(255, 0, 0).unsqueeze(0).expand(points1.shape[0], 3)
+    colors2 = col(0, 255, 0).unsqueeze(0).expand(points2.shape[0], 3)
+    colors3 = col(0, 0, 255).unsqueeze(0).expand(points3.shape[0], 3)
+    colors = torch.cat([colors1, colors2, colors3], dim=0)
+    canvas.add(points, colors)
+    canvas.display(0)
+    
+    # PERFORMANCE TESTING
+    
     canvas = Canvas(800, 800)
     col = color().col
     import time
     lines = torch.randint(0, 800, (10_000, 4), device='cuda')
     points = torch.randint(0, 800, (1_000_000, 2), device='cuda')
     colors = col(255, 0, 0)
-    colorsPoints = col(0, 255, 0)
+    colorsPoints = torch.randint(0, 255, (1_000_000, 3), device='cuda').to(torch.uint8)
+    # colorsPoints = col(0, 255, 0)
     
     # Warmup - run each function once to compile CUDA kernels
-    canvas.draw(points[:1000], colorsPoints)
+    canvas.draw(points[:1000], colorsPoints[:1000])
     canvas.drawLine(lines[:10], colors)
     canvas.drawLineGradient(lines[:10], col(255,255,255), col(0,0,0))
     canvas.clear()
@@ -250,6 +327,15 @@ if __name__ == "__main__":
     torch.cuda.synchronize()
     time_points = time.time() - start_points
     print("Time for drawing points:", time_points)
+    
+    #time for drawing points with add
+    canvas.clear()
+    torch.cuda.synchronize()
+    start_points_add = time.time()
+    canvas.add(points, colorsPoints)
+    torch.cuda.synchronize()
+    time_points_add = time.time() - start_points_add
+    print("Time for drawing points with add:", time_points_add)
     
     # Time for drawing lines
     torch.cuda.synchronize()
@@ -285,8 +371,8 @@ if __name__ == "__main__":
         colors = col(255, 0, 0)
         colorsPoints = col(0, 255, 0)
         canvas.clear().draw(points, colorsPoints).drawLineGradient(lines, col(255,255,255), col(0,0,0))
-    
-    
-    
+
+
+
 
 
