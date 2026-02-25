@@ -574,8 +574,7 @@ class color:
         self.gray = torch.tensor([128, 128, 128], dtype=torch.uint8, device=device)
         self.dark_gray = torch.tensor([64, 64, 64], dtype=torch.uint8, device=device)
         self.light_gray = torch.tensor([192, 192, 192], dtype=torch.uint8, device=device)
-        
-    
+         
     def col(self, r,g,b):
         return torch.tensor([r,g,b], dtype=torch.uint8, device=self.device)
     
@@ -619,6 +618,7 @@ if __name__ == "__main__":
     colors3 = col(0, 0, 255).unsqueeze(0).expand(points3.shape[0], 3)
     colors = torch.cat([colors1, colors2, colors3], dim=0)
     canvas.add(points, colors)
+    canvas.setTitle("add() with overlapping points")
     canvas.display(0)
     
     # PERFORMANCE TESTING
@@ -673,7 +673,7 @@ if __name__ == "__main__":
     torch.cuda.synchronize()
     time_grad = time.time() - start_grad
     print("Time for drawing gradient lines:", time_grad)
-    
+    canvas.setTitle("Performance Test: 1M points, 10k lines")
     canvas.display(0)
     cv2.destroyAllWindows()
     
@@ -688,6 +688,7 @@ if __name__ == "__main__":
                          col=col(100, 200, 255),
                          bg_col=torch.tensor([20, 20, 20], dtype=torch.uint8, device='cuda'),
                          padding=40)
+    canvas.setTitle("Histogram of mixed normal distributions")
     canvas.display(0)
     cv2.destroyAllWindows()
 
@@ -698,6 +699,7 @@ if __name__ == "__main__":
                          col=col(255, 180, 0),
                          bg_col=torch.tensor([20, 20, 20], dtype=torch.uint8, device='cuda'),
                          padding=40)
+    canvas.setTitle("Histogram of natural numbers 0-39")
     canvas.display(0)
     cv2.destroyAllWindows()
 
@@ -707,6 +709,7 @@ if __name__ == "__main__":
     canvas = Canvas(800, 800)
     N_lines = 10_000
     N_points = 1_000_000
+    canvas.setTitle("Animated Testing - press esc to exit")
     while canvas.display(1) == False:
         lines = torch.randint(100, 700, (N_lines, 4), device='cuda')
         points = torch.randint(0, 800, (N_points, 2), device='cuda')
