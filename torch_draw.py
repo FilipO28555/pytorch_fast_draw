@@ -33,6 +33,10 @@ import numpy as np
 # Auto-detect best available device
 DEFAULT_DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+# Explicit export list — prevents cv2/numpy/torch names from leaking into
+# consumer namespaces when they do `from pytorch_fast_draw.torch_draw import *`
+__all__ = ['Canvas', 'color', 'DEFAULT_DEVICE']
+
 class Canvas:
     def __init__(self, width, height, device=DEFAULT_DEVICE):
         """Initialize a canvas with specified dimensions."""
@@ -447,18 +451,24 @@ class Canvas:
         return self
 
     def drawBarChart(self, counts, col=None, bg_col=None, padding=50, bar_gap=1,
-                     title=None, x_label=None, y_label=None):
+                     title=None, x_label=None, y_label=None, additive=False,
+                     y_max=None):
         """Draw a bar chart where each element of counts is directly the bar height.
 
         Args:
-            counts:  1-D tensor (or list) of non-negative values, one per bar.
-            col:     Bar fill color, shape (3,). Defaults to white.
-            bg_col:  Background color, shape (3,). If None the canvas is not cleared.
-            padding: Pixel padding around the plot area (int).
-            bar_gap: Gap in pixels between adjacent bars (int, ≥0).
-            title:   Optional title string drawn above the plot.
-            x_label: Optional x-axis label string.
-            y_label: Optional y-axis label string (drawn rotated on the left).
+            counts:   1-D tensor (or list) of non-negative values, one per bar.
+            col:      Bar fill color, shape (3,). Defaults to white.
+            bg_col:   Background color, shape (3,). If None the canvas is not cleared.
+            padding:  Pixel padding around the plot area (int).
+            bar_gap:  Gap in pixels between adjacent bars (int, ≥0).
+            title:    Optional title string drawn above the plot.
+            x_label:  Optional x-axis label string.
+            y_label:  Optional y-axis label string (drawn rotated on the left).
+            additive: If True, use additive blending (colors are added, not overwritten).
+                      Use this to overlay multiple bar charts with transparency effect.
+            y_max:    Optional scalar — pins the Y axis ceiling to this value instead of
+                      the data maximum. Pass the same value to multiple drawBarChart calls
+                      on the same canvas to guarantee identical Y scales.
         """
         if col is None:
             col = torch.tensor([255, 255, 255], dtype=torch.uint8, device=self.device)
@@ -467,7 +477,7 @@ class Canvas:
 
         counts = torch.as_tensor(counts, dtype=torch.float32, device=self.device)
         n_bars = counts.shape[0]
-        max_count = counts.max().item()
+        max_count = float(y_max) if y_max is not None else counts.max().item()
         if max_count == 0 or n_bars == 0:
             return self
 
@@ -530,8 +540,25 @@ class Canvas:
             ys.reshape(-1)[valid_flat],
         ], dim=1)
 
-        self.drawLine(segs, col)
+        if additive:
+            # Expand each horizontal segment into individual pixels, fully vectorised
+            # segs: (M, 4) = (x0, y, x1, y)
+            seg_x0 = segs[:, 0]   # (M,)
+            seg_x1 = segs[:, 2]   # (M,)
+            seg_y  = segs[:, 1]   # (M,)
+            seg_len = (seg_x1 - seg_x0 + 1).clamp(min=1)   # (M,)
+            max_len = int(seg_len.max().item())
+            # offsets: (M, max_len)
+            off = torch.arange(max_len, device=self.device).unsqueeze(0)
+            px = (seg_x0.unsqueeze(1) + off).clamp(max=seg_x1.unsqueeze(1))  # (M, max_len)
+            py = seg_y.unsqueeze(1).expand_as(px)
+            valid_px = off < seg_len.unsqueeze(1)
+            pos_all = torch.stack([px[valid_px], py[valid_px]], dim=1)
+            self.add(pos_all, col)
+        else:
+            self.drawLine(segs, col)
         return self
+
 
 class color:
     def __init__(self, device=DEFAULT_DEVICE):

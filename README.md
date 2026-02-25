@@ -37,10 +37,25 @@ canvas.drawHistogram(
 ### `drawBarChart` options
 ```python
 canvas.drawBarChart(
-    counts,          # 1-D tensor — values are bar heights directly
+    counts,            # 1-D tensor — values are bar heights directly
     col=..., bg_col=..., padding=50, bar_gap=1,
-    title='My chart', x_label='Bin', y_label='Probability'
+    title='My chart', x_label='Bin', y_label='Probability',
+    additive=False,    # if True, colors are added (not replaced) for overlapping bars
+    y_max=None         # pin Y-axis ceiling to this value; pass the same value to
+                       # multiple calls on the same canvas to lock them to one scale
 )
+```
+
+Pass `additive=True` when drawing a second series on top of an existing canvas.  
+Bars are added pixel-by-pixel via `add()` instead of `drawLine()`, so overlapping regions
+accumulate brightness — useful for comparing two distributions on the same axes.
+
+**Example — additive overlay of two series:**
+```python
+sub = Canvas(800, 400)
+sub.drawBarChart(series_A, col=c.col(0, 110, 70),  additive=True,
+                 title='A vs B (additive)', x_label='Square', y_label='Probability')
+sub.drawBarChart(series_B, col=c.col(110, 0, 60),  additive=True)
 ```
 
 Both plotting functions draw a background grid with Y-scale numbers and X-axis tick labels automatically.
