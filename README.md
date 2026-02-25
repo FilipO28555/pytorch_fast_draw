@@ -97,6 +97,27 @@ Colors are accepted by all drawing methods as either:
 - **`(3,)`** — single color applied to all primitives
 - **`(N, 3)`** — per-primitive color, one row per point/line
 
+## Running the built-in examples
+
+`torch_draw.py` contains a self-contained demo suite in its `__main__` block.
+Run it directly to see all features in action:
+
+```bash
+python pytorch_fast_draw/torch_draw.py
+```
+
+The demo runs these steps in sequence (each waits for a key-press or ESC before continuing):
+
+| Step | What it shows |
+|------|---------------|
+| **Additive blending** | Three overlapping circles drawn with `add()` — overlapping regions accumulate brightness |
+| **Performance test** | 1 M random points + 10 k gradient lines; prints timing for `draw`, `add`, `drawLine`, `drawLineGradient` |
+| **Histogram (float data)** | Mixed Gaussian distribution, auto-range, `bin_width=10` |
+| **Histogram (integer data)** | Uniform integers 0–39, `bin_width=1`, explicit `data_range` |
+| **Animated loop** | Continuously redraws random points and gradient lines; press **ESC** to exit |
+
+No extra files or imports needed — everything runs from the single `torch_draw.py` file.
+
 ## License
 
 MIT License — Copyright (c) 2025 Filip Optołowicz, University of Wrocław
