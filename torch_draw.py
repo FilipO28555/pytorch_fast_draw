@@ -30,8 +30,11 @@ import torch
 import cv2
 import numpy as np
 
+# Auto-detect best available device
+DEFAULT_DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 class Canvas:
-    def __init__(self, width, height, device='cuda'):
+    def __init__(self, width, height, device=DEFAULT_DEVICE):
         """Initialize a canvas with specified dimensions."""
         self.width = width
         self.height = height
@@ -531,7 +534,7 @@ class Canvas:
         return self
 
 class color:
-    def __init__(self, device='cuda'):
+    def __init__(self, device=DEFAULT_DEVICE):
         self.device = device
         self.white = torch.tensor([255, 255, 255], dtype=torch.uint8, device=device)
         self.black = torch.tensor([0, 0, 0], dtype=torch.uint8, device=device)
@@ -683,8 +686,3 @@ if __name__ == "__main__":
         colors = col(255, 0, 0)
         colorsPoints = col(0, 255, 0)
         canvas.clear().draw(points, colorsPoints).drawLineGradient(lines, col(255,255,255), col(0,0,0))
-
-
-
-
-

@@ -47,12 +47,40 @@ Both plotting functions draw a background grid with Y-scale numbers and X-axis t
 
 ## color helper
 
+All color values are `torch.uint8` tensors on the chosen device with shape `(3,)` = `[R, G, B]`.
+
 ```python
 c = color(device='cuda')
-c.red                      # predefined tensors: red, green, blue, white, ...
-c.col(r, g, b)             # custom RGB tensor
-c.colLuma(v)               # grayscale tensor
 ```
+
+**Predefined colors** — all `torch.uint8` tensors, shape `(3,)`:
+
+| Attribute | RGB |
+|-----------|-----|
+| `c.white` | 255, 255, 255 |
+| `c.black` | 0, 0, 0 |
+| `c.red` | 255, 0, 0 |
+| `c.green` | 0, 255, 0 |
+| `c.blue` | 0, 0, 255 |
+| `c.yellow` | 255, 255, 0 |
+| `c.magenta` | 255, 0, 255 |
+| `c.cyan` | 0, 255, 255 |
+| `c.gray` | 128, 128, 128 |
+| `c.dark_gray` | 64, 64, 64 |
+| `c.light_gray` | 192, 192, 192 |
+
+**Methods:**
+
+```python
+c.col(r, g, b)    # → torch.uint8 tensor [r, g, b], values 0–255
+c.colLuma(v)      # → torch.uint8 tensor [v, v, v]
+                  #   v can be a scalar (int/float) or a tensor
+                  #   (returns shape (3,) or (N,3) respectively)
+```
+
+Colors are accepted by all drawing methods as either:
+- **`(3,)`** — single color applied to all primitives
+- **`(N, 3)`** — per-primitive color, one row per point/line
 
 ## License
 
