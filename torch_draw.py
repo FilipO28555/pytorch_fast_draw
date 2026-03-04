@@ -38,11 +38,21 @@ DEFAULT_DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 __all__ = ['Canvas', 'color', 'DEFAULT_DEVICE']
 
 class Canvas:
-    def __init__(self, width, height, device=DEFAULT_DEVICE):
-        """Initialize a canvas with specified dimensions."""
+    def __init__(self, width, height, device=DEFAULT_DEVICE, scale=1):
+        """Initialize a canvas with specified dimensions.
+        
+        Args:
+            width:  Canvas width in pixels.
+            height: Canvas height in pixels.
+            device: Torch device ('cuda' or 'cpu').
+            scale:  Integer scale factor applied when displaying or saving.
+                    The internal buffer stays (width × height); the window /
+                    saved file is (width*scale × height*scale).
+        """
         self.width = width
         self.height = height
         self.device = device
+        self.scale = max(1, int(scale))
         self.img = torch.zeros((height, width, 3), dtype=torch.uint8, device=device)
     def setTitle(self, title):
         """Set the window title for display."""
@@ -57,13 +67,53 @@ class Canvas:
             self.img[:, :] = col
         return self
     
-    def draw(self, pos, col):
-        """Draw points at the specified positions with the specified colors.
-        
-        Args:
-            pos: Tensor of shape (N, 2) containing the (x, y) coordinates
-            col: Tensor of shape (3,) or (N, 3) containing RGB color(s)
+    def draw(self, pos, col=None):
+        """Draw points at the specified positions with the specified colors,
+        OR render a 2-D tensor as a grayscale/RGB image directly onto the canvas.
+
+        Overloads
+        ---------
+        draw(tablica)
+            ``tablica`` is a 2-D tensor of arbitrary numeric type with shape
+            (H, W) or a 3-D tensor of shape (H, W, 3).
+            Values are normalised to [0, 255] (min→0, max→255) and the result
+            is written into the top-left corner of the canvas, cropped to fit.
+
+        draw(pos, col)
+            Classic point-drawing mode.
+            ``pos``: Tensor of shape (N, 2) containing the (x, y) coordinates.
+            ``col``: Tensor of shape (3,) or (N, 3) containing RGB color(s).
         """
+        # --- 2-D / image tensor mode -----------------------------------------
+        if col is None:
+            tablica = pos  # rename for clarity
+            tablica = torch.as_tensor(tablica, device=self.device).float()
+            if tablica.dim() == 2:
+                # Grayscale (H, W) → (H, W, 3)
+                t_min, t_max = tablica.min(), tablica.max()
+                if t_max != t_min:
+                    norm = ((tablica - t_min) / (t_max - t_min) * 255).to(torch.uint8)
+                else:
+                    norm = torch.zeros_like(tablica, dtype=torch.uint8)
+                img_tensor = norm.unsqueeze(2).expand(-1, -1, 3)
+            elif tablica.dim() == 3 and tablica.shape[2] == 3:
+                # RGB (H, W, 3)
+                t_min, t_max = tablica.min(), tablica.max()
+                if t_max != t_min:
+                    img_tensor = ((tablica - t_min) / (t_max - t_min) * 255).to(torch.uint8)
+                else:
+                    img_tensor = torch.zeros_like(tablica, dtype=torch.uint8)
+            else:
+                raise ValueError(
+                    f"draw(tablica): expected a 2-D (H,W) or 3-D (H,W,3) tensor, "
+                    f"got shape {tuple(tablica.shape)}"
+                )
+            h = min(img_tensor.shape[0], self.height)
+            w = min(img_tensor.shape[1], self.width)
+            self.img[:h, :w] = img_tensor[:h, :w].contiguous()
+            return self
+
+        # --- Point-drawing mode ----------------------------------------------
         # Apply mask for points within bounds
         mask_x = pos[:, 0].ge(0) & pos[:, 0].lt(self.width)
         mask_y = pos[:, 1].ge(0) & pos[:, 1].lt(self.height)
@@ -244,6 +294,9 @@ class Canvas:
         """
         img = self.getImg()
         img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        if self.scale != 1:
+            img = cv2.resize(img, (self.width * self.scale, self.height * self.scale),
+                             interpolation=cv2.INTER_NEAREST)
         cv2.imshow('Canvas', img)
         key = cv2.waitKey(wait)
         return key == 27  # Return True if ESC pressed
@@ -252,6 +305,9 @@ class Canvas:
         """Save the canvas as a PNG file."""
         img = self.getImg()
         img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        if self.scale != 1:
+            img = cv2.resize(img, (self.width * self.scale, self.height * self.scale),
+                             interpolation=cv2.INTER_NEAREST)
         cv2.imwrite(path, img)
 
     # ------------------------------------------------------------------
