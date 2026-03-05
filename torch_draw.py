@@ -89,6 +89,8 @@ class Canvas:
             tablica = pos  # rename for clarity
             tablica = torch.as_tensor(tablica, device=self.device).float()
             if tablica.dim() == 2:
+                # tablica is (X, Y) — transpose to (Y, X) = (H, W) for canvas rows/cols
+                tablica = tablica.T
                 # Grayscale (H, W) → (H, W, 3)
                 t_min, t_max = tablica.min(), tablica.max()
                 if t_max != t_min:
@@ -97,6 +99,8 @@ class Canvas:
                     norm = torch.zeros_like(tablica, dtype=torch.uint8)
                 img_tensor = norm.unsqueeze(2).expand(-1, -1, 3)
             elif tablica.dim() == 3 and tablica.shape[2] == 3:
+                # tablica is (X, Y, 3) — transpose spatial dims to (Y, X, 3)
+                tablica = tablica.permute(1, 0, 2)
                 # RGB (H, W, 3)
                 t_min, t_max = tablica.min(), tablica.max()
                 if t_max != t_min:
@@ -673,6 +677,7 @@ if __name__ == "__main__":
     colors2 = col(0, 255, 0).unsqueeze(0).expand(points2.shape[0], 3)
     colors3 = col(0, 0, 255).unsqueeze(0).expand(points3.shape[0], 3)
     colors = torch.cat([colors1, colors2, colors3], dim=0)
+    
     canvas.add(points, colors)
     canvas.setTitle("add() with overlapping points")
     canvas.display(0)
