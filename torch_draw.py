@@ -571,6 +571,102 @@ class Canvas:
         self.drawLine(all_lines, col)
         return self
 
+    def drawLinePlot(self, series, cols=None, bg_col=None, padding=50,
+                     title=None, x_label=None, y_label=None,
+                     y_min=None, y_max=None):
+        """Draw one or more line series on the canvas.
+
+        Args:
+            series:   List of 1-D tensors (or a single 1-D tensor).  Each
+                      tensor holds the Y-values for one line; the X axis is
+                      the element index (0 … len-1).
+            cols:     List of color tensors shape (3,) – one per series.
+                      If None, a set of default colours is used.
+            bg_col:   Background colour tensor shape (3,).  If None the
+                      canvas is NOT cleared first.
+            padding:  Pixel padding around the plot area.
+            title:    Optional title string.
+            x_label:  Optional x-axis label string.
+            y_label:  Optional y-axis label string (rotated on the left).
+            y_min:    Pin the Y axis floor to this value.
+            y_max:    Pin the Y axis ceiling to this value.
+        """
+        if bg_col is not None:
+            self.clear(bg_col)
+
+        # Accept a single tensor as a one-element list
+        if isinstance(series, torch.Tensor):
+            series = [series]
+
+        if len(series) == 0:
+            return self
+
+        # Default colour palette (distinct hues)
+        _default_cols = [
+            torch.tensor([255, 80,  80],  dtype=torch.uint8, device=self.device),  # red
+            torch.tensor([80,  200, 255], dtype=torch.uint8, device=self.device),  # cyan
+            torch.tensor([80,  255, 80],  dtype=torch.uint8, device=self.device),  # green
+            torch.tensor([255, 200, 80],  dtype=torch.uint8, device=self.device),  # orange
+            torch.tensor([200, 80,  255], dtype=torch.uint8, device=self.device),  # purple
+            torch.tensor([255, 255, 80],  dtype=torch.uint8, device=self.device),  # yellow
+            torch.tensor([80,  255, 200], dtype=torch.uint8, device=self.device),  # teal
+            torch.tensor([255, 80,  200], dtype=torch.uint8, device=self.device),  # pink
+        ]
+        if cols is None:
+            cols = [_default_cols[i % len(_default_cols)] for i in range(len(series))]
+
+        # Compute global Y range across all series
+        all_vals = torch.cat([s.float().to(self.device) for s in series])
+        data_min = float(all_vals.min().item()) if y_min is None else float(y_min)
+        data_max = float(all_vals.max().item()) if y_max is None else float(y_max)
+        if data_max == data_min:
+            data_max = data_min + 1.0
+
+        # Max number of data points across all series
+        max_len = max(len(s) for s in series)
+
+        # Plot area
+        plot_x0 = padding
+        plot_y0 = padding
+        plot_x1 = self.width  - padding
+        plot_y1 = self.height - padding
+        plot_w  = plot_x1 - plot_x0
+        plot_h  = plot_y1 - plot_y0
+
+        # Build grid / axis labels
+        n_x_ticks = max(2, plot_w // 60)
+        x_labels = []
+        for i in range(n_x_ticks + 1):
+            frac = i / n_x_ticks
+            idx  = int(round(frac * (max_len - 1)))
+            px   = plot_x0 + int(frac * plot_w)
+            x_labels.append((px, str(idx)))
+
+        self._drawPlotGrid(plot_x0, plot_y0, plot_x1, plot_y1,
+                           x_labels=x_labels,
+                           y_values=None,
+                           max_val=data_max - data_min,
+                           title=title, x_label=x_label, y_label=y_label)
+
+        # Draw each series as connected line segments
+        for s, col in zip(series, cols):
+            s = s.float().to(self.device)
+            n = len(s)
+            if n < 2:
+                continue
+
+            # Map data → pixel coordinates
+            xs = (torch.arange(n, device=self.device).float() / (max_len - 1) * plot_w
+                  + plot_x0).long()
+            ys = (plot_y1 - (s - data_min) / (data_max - data_min) * plot_h).long()
+            ys = ys.clamp(plot_y0, plot_y1)
+
+            # Consecutive segments: (N-1, 4) = [x0, y0, x1, y1]
+            segs = torch.stack([xs[:-1], ys[:-1], xs[1:], ys[1:]], dim=1)
+            self.drawLine(segs, col)
+
+        return self
+
     def drawBarChart(self, counts, col=None, bg_col=None, padding=50, bar_gap=1,
                      title=None, x_label=None, y_label=None, additive=False,
                      y_max=None):
