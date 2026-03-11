@@ -54,6 +54,7 @@ class Canvas:
         self.device = device
         self.scale = max(1, int(scale))
         self.img = torch.zeros((height, width, 3), dtype=torch.uint8, device=device)
+        self._last_key = -1  # stores the raw key code from the last display() call
     def setTitle(self, title):
         """Set the window title for display."""
         cv2.setWindowTitle("Canvas", title)
@@ -303,7 +304,67 @@ class Canvas:
                              interpolation=cv2.INTER_NEAREST)
         cv2.imshow('Canvas', img)
         key = cv2.waitKey(wait)
+        self._last_key = key
         return key == 27  # Return True if ESC pressed
+
+    def isKeyPressed(self, key):
+        """Check whether a specific key was pressed during the last display() call.
+
+        Args:
+            key: Either a single-character string (e.g. ``"R"``, ``"r"``) for
+                 printable keys, or one of the special-key name strings listed
+                 below.  The check is **case-insensitive** for letter keys.
+
+        Recognised special-key names (case-insensitive):
+            ``"ESC"`` / ``"ESCAPE"``, ``"ENTER"`` / ``"RETURN"``,
+            ``"SPACE"``, ``"TAB"``,
+            ``"UP"``, ``"DOWN"``, ``"LEFT"``, ``"RIGHT"``,
+            ``"F1"`` … ``"F12"``,
+            ``"DELETE"`` / ``"DEL"``, ``"BACKSPACE"``,
+            ``"HOME"``, ``"END"``, ``"PAGEUP"``, ``"PAGEDOWN"``.
+
+        Returns:
+            True if the key matched the last registered key-press, False otherwise.
+
+        Example::
+
+            while not canvas.display(1):
+                if canvas.isKeyPressed("R"):
+                    reset()
+                if canvas.isKeyPressed("ESC"):
+                    break
+        """
+        # Map of special key names → cv2.waitKey() return values.
+        # Arrow / function keys come back as high values on most platforms.
+        _SPECIAL = {
+            "ESC": 27, "ESCAPE": 27,
+            "ENTER": 13, "RETURN": 13,
+            "SPACE": 32,
+            "TAB": 9,
+            "BACKSPACE": 8,
+            "DELETE": 127, "DEL": 127,
+            # Arrow keys (standard values returned by cv2.waitKey on most OS)
+            "UP":    2490368,
+            "DOWN":  2621440,
+            "LEFT":  2424832,
+            "RIGHT": 2555904,
+            # Function keys
+            "F1":  7340032, "F2":  7405568, "F3":  7471104, "F4":  7536640,
+            "F5":  7602176, "F6":  7667712, "F7":  7733248, "F8":  7798784,
+            "F9":  7864320, "F10": 7929856, "F11": 8060928, "F12": 8126464,
+            # Navigation
+            "HOME":     7274496,
+            "END":      8323072,
+            "PAGEUP":   8519680,
+            "PAGEDOWN": 8650752,
+        }
+        key_upper = key.upper()
+        if key_upper in _SPECIAL:
+            return self._last_key == _SPECIAL[key_upper]
+        # Single printable character — check both cases
+        if len(key) == 1:
+            return self._last_key in (ord(key.lower()), ord(key.upper()))
+        return False
 
     def save_png(self, path):
         """Save the canvas as a PNG file."""
